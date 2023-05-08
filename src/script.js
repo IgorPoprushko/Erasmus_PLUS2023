@@ -6,6 +6,9 @@ import { Vector3 } from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { SSAOPass } from 'three/addons/postprocessing/SSAOPass.js';
 
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
+import { RectAreaLightHelper }  from 'three/examples/jsm/helpers/RectAreaLightHelper.js';
+
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 
@@ -48,12 +51,22 @@ ssaoPass.kernelRadius = 2;
 composer.addPass(ssaoPass);
 //
 
+// Lights
+const intensity = 1;
+const rectLight = new THREE.RectAreaLight( 0xffffff, intensity,  100, 100 );
+rectLight.position.set(0, 20, 0);
+rectLight.lookAt( 0, 1, 0 );
+scene.add( rectLight )
+
+// const rectLightHelper = new RectAreaLightHelper( rectLight );
+// rectLight.add( rectLightHelper );
 //#endregion
 
 //#region Variables
 //System
 var raycaster = new THREE.Raycaster();
-var loader = new OBJLoader();
+var loaderOBJ = new OBJLoader();
+const loaderGLTF = new GLTFLoader();
 var raycastInterval = undefined;
 
 var isSSAOTurnOn = 0;  // TurnON SSAO
@@ -72,11 +85,11 @@ var backButton = document.querySelector("#backButton");
 
 //ObjectS
 let modelFilenames = {
-	'1': () => import.meta.glob(`/models/1/*.obj`),
-	'2': () => import.meta.glob(`/models/2/*.obj`),
-	'3': () => import.meta.glob(`/models/3/*.obj`),
-	'4': () => import.meta.glob(`/models/4/*.obj`),
-	'5': () => import.meta.glob(`/models/5/*.obj`)
+	'1': () => import.meta.glob(`/models/1/*.glb`),
+	'2': () => import.meta.glob(`/models/2/*.glb`),
+	'3': () => import.meta.glob(`/models/3/*.glb`),
+	'4': () => import.meta.glob(`/models/4/*.glb`),
+	'5': () => import.meta.glob(`/models/5/*.glb`)
 }
 
 var objRotationZ = 0;
@@ -85,7 +98,7 @@ for (let j = 0; j < menuDivs.length; j++) {
 	var local = Object.keys(modelFilenames[j + 1]());
 	Object.keys
 	for (let i = 0; i < local.length; i++) {
-		AllObjects[j][local[i].replace(`/models/${j + 1}/`, "").replace(".obj", "")] = local[i];
+		AllObjects[j][local[i].replace(`/models/${j + 1}/`, "").replace(".glb", "")] = local[i];
 	}
 }
 
@@ -190,7 +203,7 @@ document.addEventListener("mousedown", (event) => {
 		} else if (event.button == 2) {
 			clearInterval(raycastInterval)
 			raycastInterval = undefined;
-			scene.remove(raycastObject.parent);
+			scene.remove(raycastObject);
 			raycastObject = undefined;
 		}
 	} else {
@@ -272,7 +285,7 @@ function movement() {
 	if (keyboardState['KeyS']) direction.z += 1;
 	if (keyboardState['KeyA']) direction.x -= 1;
 	if (keyboardState['KeyD']) direction.x += 1;
-	//*
+	/*
 	if (keyboardState['Space']) camera.position.y += 1 / 10;
 	if (keyboardState['ControlLeft']) camera.position.y -= 1 / 10;
 	//*/
@@ -310,7 +323,6 @@ function createProducts() {
 						raycastInterval = setInterval(() => raycastMovement(obj), 1000 / 60);
 						raycastObject = obj;
 					})
-
 				}
 			});
 		}
@@ -318,19 +330,27 @@ function createProducts() {
 }
 
 //Object
+
 async function createEntity(object) {
+	objRotationZ = 0;
+	const gltf = await loaderGLTF.loadAsync(object);
+	gltf.scene.name = object;
+	MyObjects.push(gltf.scene.id);
+	scene.add(gltf.scene);
+	return gltf.scene;
+}
+
+async function createEntity_old(object) {
 	const cubeTexture = new THREE.TextureLoader().load(`images/textures/${getLocationToName(object)}.png`);
 	const cubeMaterial = new THREE.MeshBasicMaterial({ map: cubeTexture });
 	objRotationZ = 0;
 	const obj = await new Promise((resolve, reject) => {
-		loader.load(object,
+		loaderOBJ.load(object,
 			(loadedObj) => {
 				loadedObj.traverse(function (child) {
-					// console.log(child);
 					if (child instanceof THREE.Mesh) {
 						child.material = cubeMaterial;
 						child.name = object;
-						console.log(child);
 						resolve(child);
 					}
 				});
@@ -341,7 +361,6 @@ async function createEntity(object) {
 		);
 	});
 	MyObjects.push(obj.id);
-	console.log("pop",obj);
 	return obj;
 }
 
@@ -351,16 +370,14 @@ function getElementbyRaycast(screenPoint) {
 
 		var intersects = raycaster.intersectObjects(scene.children)
 
-		return intersects[0].object;
+		return intersects[0].object.parent;
 	}
 }
 
 function raycastMovement(obj) {
-	// console.log(obj);
 	if (controls.isLocked && obj != undefined && MyObjects.includes(obj.id)) {
 		raycaster.setFromCamera(new THREE.Vector2(), camera);
-
-		var intersects = raycaster.intersectObjects(scene.children).filter(e => e.object != obj && e.distance < 100);
+		var intersects = raycaster.intersectObjects(scene.children).filter(e => e.object != obj.getObjectById(e.object.id) && e.distance < 100);
 
 		if (intersects.length > 0) {
 			obj.position.set(intersects[0].point.x, intersects[0].point.y, intersects[0].point.z);
@@ -371,11 +388,11 @@ function raycastMovement(obj) {
 		clearInterval(raycastInterval)
 		raycastInterval = undefined
 
-		console.error("Raycast is not posible", controls.isLocked, obj != undefined, MyObjects.includes(obj));
+		console.info("Raycast is not posible", controls.isLocked, obj != undefined, MyObjects.includes(obj));
 	}
 }
 
-function getLocationToName(object) { return object.replace(/#|\/models\/1\/|\/models\/2\/|\/models\/3\/|\/models\/4\/|\/models\/5\//g, '').replace(".obj", ""); }
+function getLocationToName(object) { return object.replace(/#|\/models\/1\/|\/models\/2\/|\/models\/3\/|\/models\/4\/|\/models\/5\//g, '').replace(".glb", ""); }
 
 //#endregion
 
