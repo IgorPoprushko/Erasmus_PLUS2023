@@ -313,7 +313,7 @@ function createProducts() {
 		for (let i = 0; i < Object.keys(AllObjects[j]).length; i++) {
 			var img = document.createElement("img");
 			img.classList.add("productElement");
-			img.src = `images/textures/icons/${getLocationToName(Object.values(AllObjects[j])[i])}.png`;
+			img.src = `images/textures/${getLocationToName(Object.values(AllObjects[j])[i])}.png`;
 			document.querySelectorAll(".productContainer")[j].appendChild(img);
 
 			img.addEventListener("click", () => {
