@@ -1,0 +1,8 @@
+---------General---------
+W,A,S,D - movement
+E - Open Menu
+Left Click - Eride Object
+
+--------Build Mode--------
+Left Click - Place Object
+Right Click - Delete Object
