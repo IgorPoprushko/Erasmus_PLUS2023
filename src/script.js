@@ -3,6 +3,8 @@ import * as THREE from 'three';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { Vector3 } from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { SSAOPass } from 'three/addons/postprocessing/SSAOPass.js';
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -11,8 +13,21 @@ const renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
+// Create SkyBox
+var sphereGeometry = new THREE.SphereGeometry(500, 60, 40);
+sphereGeometry.scale(-1, 1, 1);
+var sphereMaterial = new THREE.MeshBasicMaterial({
+	map: new THREE.TextureLoader().load('images/sky/sky2.png')
+});
+var sphereMesh = new THREE.Mesh(sphereGeometry, sphereMaterial);
+scene.add(sphereMesh);
+
+//MouseControls
 var controls = new PointerLockControls(camera, renderer.domElement);
-controls.pointerSpeed = 1.5;
+
+controls.maxPolarAngle -= 0.01;
+controls.minPolarAngle += 0.01;
+
 scene.add(controls.getObject());
 
 document.body.onresize = () => {
@@ -22,28 +37,72 @@ document.body.onresize = () => {
 	renderer.setSize(window.innerWidth, window.innerHeight);
 };
 
+// SSAO
+const width = window.innerWidth;
+const height = window.innerHeight;
+
+var composer = new EffectComposer(renderer);
+
+const ssaoPass = new SSAOPass(scene, camera, width, height);
+ssaoPass.kernelRadius = 2;
+composer.addPass(ssaoPass);
+//
+
 //#endregion
+
+//#region Variables
+//System
+var raycaster = new THREE.Raycaster();
+var loader = new OBJLoader();
+var raycastInterval = undefined;
+
+var isSSAOTurnOn = 0;  // TurnON SSAO
 
 //Movement
 const cameraSpeed = 0.2;
+controls.pointerSpeed = 1.5;
 const keyboardState = {};
-//Rotation
+
+//HTML
 var blocker = document.getElementById('blocker');
 var menu = document.getElementById('menuDiv');
+var menuDivs = document.querySelectorAll(".menuImages");
+var productDivs = document.querySelectorAll(".productContainer");
+var backButton = document.querySelector("#backButton");
 
-var inter = undefined;
+//ObjectS
+let modelFilenames = {
+	'1': () => import.meta.glob(`/models/1/*.obj`),
+	'2': () => import.meta.glob(`/models/2/*.obj`),
+	'3': () => import.meta.glob(`/models/3/*.obj`),
+	'4': () => import.meta.glob(`/models/4/*.obj`),
+	'5': () => import.meta.glob(`/models/5/*.obj`)
+}
 
+var objRotationZ = 0;
+var AllObjects = [{}, {}, {}, {}, {}];
+for (let j = 0; j < menuDivs.length; j++) {
+	var local = Object.keys(modelFilenames[j + 1]());
+	Object.keys
+	for (let i = 0; i < local.length; i++) {
+		AllObjects[j][local[i].replace(`/models/${j + 1}/`, "").replace(".obj", "")] = local[i];
+	}
+}
+
+var raycastObject = undefined;
+
+var MyObjects = [];
+
+//#endregion
+
+//#region onStart
 cameraStartPoint(new THREE.Euler(-17, 4, -10), -1.6)
-
-var sphereGeometry = new THREE.SphereGeometry(500, 60, 40);
-sphereGeometry.scale(-1, 1, 1);
-var sphereMaterial = new THREE.MeshBasicMaterial({
-	map: new THREE.TextureLoader().load('textures/sky/sky2.png')
-});
-var sphereMesh = new THREE.Mesh(sphereGeometry, sphereMaterial);
-scene.add(sphereMesh);
+createProducts()
+//#endregion
 
 //#region Objects
+
+//Box
 const wallsMaterial = new THREE.MeshBasicMaterial({ color: 0xf1f1f1 });
 
 const ground = new THREE.Mesh(new THREE.BoxGeometry(75, 0, 75), wallsMaterial);
@@ -62,38 +121,20 @@ scene.add(wall2);
 scene.add(wall3);
 scene.add(wall4);
 
+//House
 new THREE.ObjectLoader().load('models/1.json', function (obj) {
 	obj.position.set(0, 0, 0)
 	scene.add(obj);
 });
 
-
-const cubeTexture = new THREE.TextureLoader().load('textures/2.png');
-const cubeMaterial = new THREE.MeshBasicMaterial({ map: cubeTexture });
-
-var test1
-
-var loader = new OBJLoader();
-loader.load('models/texture.obj',
-	function (obj) {
-		obj.traverse(function (child) {
-			if (child instanceof THREE.Mesh) {
-				child.material = cubeMaterial;
-				child.name = "NewObject";
-				test1 = child
-			}
-		});
-
-		scene.add(obj);
-	}
-);;
+//TestSphere
 const test2 = new THREE.Mesh(new THREE.SphereGeometry(2, 32, 32));
 test2.position.add(new Vector3(10, 0, 10))
 scene.add(test2);
 
 //#endregion
 
-//#region Event listeners
+//#region Listeners
 document.addEventListener('keydown', (event) => {
 	keyboardState[event.code] = true;
 });
@@ -106,28 +147,20 @@ document.addEventListener('keypress', (event) => {
 	if (blocker.style.display == "none") {
 		switch (event.code) {
 			case "KeyE":
-				if (menu.style.display == "none") {
-					menu.style.display = "block"
-					controls.unlock()
-				} else {
-					menu.style.display = "none"
-					controls.lock()
+				clearInterval(raycastInterval)
+				raycastInterval = undefined;
+				if (raycastObject != null) {
+					scene.remove(raycastObject.parent);
+					raycastObject = undefined;
 				}
+				trigerMenu()
 				break;
+
 			default:
 			// code block
 		}
 	}
 });
-
-controls.addEventListener('lock', () => {
-	blocker.style.display = "none";
-});
-
-controls.addEventListener('unlock', () => {
-	if (menu.style.display == "block") return;
-	blocker.style.display = "block";
-})
 
 document.getElementById('blocker').addEventListener('click', function () {
 	/* 
@@ -140,59 +173,91 @@ document.getElementById('blocker').addEventListener('click', function () {
 	//*/
 });
 
-// document.addEventListener("click", () => {
-// 	if (controls.isLocked) {
-// 		if (inter == undefined) {
-// 			inter = setInterval(onMouseClick, 10)
-// 		} else {
-// 			clearInterval(inter)
-// 			inter = undefined
-// 		}
-// 	}
+document.addEventListener("mousedown", (event) => {
+	if (!controls.isLocked) return;
 
-// })
+	if (raycastInterval != undefined) {
+		if (event.button == 0) {
+			clearInterval(raycastInterval)
+			raycastInterval = undefined;
+
+			createEntity(raycastObject.name).then((obj) => {
+				raycastInterval = setInterval(() => raycastMovement(obj), 1000 / 60);
+				raycastObject = obj;
+			})
+
+
+		} else if (event.button == 2) {
+			clearInterval(raycastInterval)
+			raycastInterval = undefined;
+			scene.remove(raycastObject.parent);
+			raycastObject = undefined;
+		}
+	} else {
+		if (event.button == 0) {
+			var obj = getElementbyRaycast(new THREE.Vector2());
+			objRotationZ = obj.rotation.z
+			raycastInterval = setInterval(() => raycastMovement(obj), 1000 / 60);
+			raycastObject = obj;
+		}
+	}
+});
+
+document.addEventListener("wheel", (event) => {
+	if (controls.isLocked) {
+		if (raycastInterval != undefined) {
+			if (event.deltaY > 0) objRotationZ += Math.PI / 4;
+			else objRotationZ -= Math.PI / 4;
+		}
+	}
+});
+
+controls.addEventListener('lock', () => {
+	blocker.style.display = "none";
+});
+
+controls.addEventListener('unlock', () => {
+	if (menu.style.display == "none") {
+		blocker.style.display = "block";
+	}
+});
+
+backButton.addEventListener("click", () => {
+	document.querySelector(".categoryContainer").style.display = "flex";
+	backButton.style.display = "none";
+	[...productDivs].map(e => e.style.display = "none");
+});
+
+for (let i = 0; i < menuDivs.length; i++) {
+	menuDivs[i].addEventListener("click", () => {
+		document.querySelector(".categoryContainer").style.display = "none";
+		backButton.style.display = "block";
+		productDivs[i].style.display = "flex";
+	});
+}
 
 //#endregion
 
-var raycaster = new THREE.Raycaster();
+//#region Functions
 
-function onMouseClick() {
-	if (controls.isLocked && test1 != undefined) {
-		// nastavíme paprsek
-		raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-
-		// zjistíme, zda paprsek koliduje s krychlí
-		// console.log(test1);
-		var intersects = raycaster.intersectObjects(scene.children)
-		intersects = intersects.filter(e => e.object != test1);
-
-		// pokud paprsek koliduje s krychlí, změníme její barvu
-		if (intersects.length > 0) {
-			test1.position.set(intersects[0].point.x, intersects[0].point.y, intersects[0].point.z)
-			test1.lookAt(intersects[0].point.add(intersects[0].face.normal	))
-		}
-	}
-}
-
+//Init
 function cameraStartPoint(positionVector = new THREE.Euler(), rotationY = 0) {
 	camera.position.setFromEuler(positionVector);
 
 	camera.rotation.y = rotationY;
 }
 
-function movement() {
-	var direction = new THREE.Vector3();
-	if (keyboardState['KeyW']) direction.z -= 1;
-	if (keyboardState['KeyS']) direction.z += 1;
-	if (keyboardState['KeyA']) direction.x -= 1;
-	if (keyboardState['KeyD']) direction.x += 1;
+function render() {
+	requestIdleCallback(render);
 
-	camera.localToWorld(direction)
-	direction.sub(camera.position);
-	direction.y = 0;
-	direction.normalize()
-	camera.position.addScaledVector(direction, cameraSpeed);
+	if (controls.isLocked) {
+		movement();
+	}
+	renderer.render(scene, camera);
 
+	if (isSSAOTurnOn) {
+		composer.render();
+	}
 }
 
 function animate() {
@@ -200,15 +265,119 @@ function animate() {
 
 }
 
-function render() {
-	requestIdleCallback(render);
+//Camera
+function movement() {
+	var direction = new THREE.Vector3();
+	if (keyboardState['KeyW']) direction.z -= 1;
+	if (keyboardState['KeyS']) direction.z += 1;
+	if (keyboardState['KeyA']) direction.x -= 1;
+	if (keyboardState['KeyD']) direction.x += 1;
+	//*
+	if (keyboardState['Space']) camera.position.y += 1 / 10;
+	if (keyboardState['ControlLeft']) camera.position.y -= 1 / 10;
+	//*/
 
-	if (controls.isLocked) {
-		movement()
-
-	}
-	renderer.render(scene, camera);
+	camera.localToWorld(direction)
+	direction.sub(camera.position);
+	direction.y = 0;
+	direction.normalize()
+	camera.position.addScaledVector(direction, cameraSpeed);
 }
+
+//GUI
+function trigerMenu() {
+	if (menu.style.display == "none") {
+		menu.style.display = "block"
+		controls.unlock()
+	} else {
+		menu.style.display = "none"
+		controls.lock()
+	}
+}
+
+function createProducts() {
+	for (let j = 0; j < menuDivs.length; j++) {
+		for (let i = 0; i < Object.keys(AllObjects[j]).length; i++) {
+			var img = document.createElement("img");
+			img.classList.add("productElement");
+			img.src = `images/textures/icons/${getLocationToName(Object.values(AllObjects[j])[i])}.png`;
+			document.querySelectorAll(".productContainer")[j].appendChild(img);
+
+			img.addEventListener("click", () => {
+				if (raycastInterval == undefined) {
+					trigerMenu()
+					createEntity(Object.values(AllObjects[j])[i]).then((obj) => {
+						raycastInterval = setInterval(() => raycastMovement(obj), 1000 / 60);
+						raycastObject = obj;
+					})
+
+				}
+			});
+		}
+	}
+}
+
+//Object
+async function createEntity(object) {
+	const cubeTexture = new THREE.TextureLoader().load(`images/textures/${getLocationToName(object)}.png`);
+	const cubeMaterial = new THREE.MeshBasicMaterial({ map: cubeTexture });
+	objRotationZ = 0;
+	const obj = await new Promise((resolve, reject) => {
+		loader.load(object,
+			(loadedObj) => {
+				loadedObj.traverse(function (child) {
+					// console.log(child);
+					if (child instanceof THREE.Mesh) {
+						child.material = cubeMaterial;
+						child.name = object;
+						console.log(child);
+						resolve(child);
+					}
+				});
+				scene.add(loadedObj);
+			},
+			undefined,
+			reject
+		);
+	});
+	MyObjects.push(obj.id);
+	console.log("pop",obj);
+	return obj;
+}
+
+function getElementbyRaycast(screenPoint) {
+	if (controls.isLocked) {
+		raycaster.setFromCamera(screenPoint || new THREE.Vector2(), camera);
+
+		var intersects = raycaster.intersectObjects(scene.children)
+
+		return intersects[0].object;
+	}
+}
+
+function raycastMovement(obj) {
+	// console.log(obj);
+	if (controls.isLocked && obj != undefined && MyObjects.includes(obj.id)) {
+		raycaster.setFromCamera(new THREE.Vector2(), camera);
+
+		var intersects = raycaster.intersectObjects(scene.children).filter(e => e.object != obj && e.distance < 100);
+
+		if (intersects.length > 0) {
+			obj.position.set(intersects[0].point.x, intersects[0].point.y, intersects[0].point.z);
+			obj.lookAt(intersects[0].point.add(intersects[0].face.normal));
+			obj.rotation.z = objRotationZ;
+		}
+	} else {
+		clearInterval(raycastInterval)
+		raycastInterval = undefined
+
+		console.error("Raycast is not posible", controls.isLocked, obj != undefined, MyObjects.includes(obj));
+	}
+}
+
+function getLocationToName(object) { return object.replace(/#|\/models\/1\/|\/models\/2\/|\/models\/3\/|\/models\/4\/|\/models\/5\//g, '').replace(".obj", ""); }
+
+//#endregion
 
 animate()
 render()

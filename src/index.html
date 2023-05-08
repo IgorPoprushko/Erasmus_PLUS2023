@@ -5,32 +5,44 @@
     <meta charset="UTF-8">
     <title>Three.js First Person Camera</title>
     <link rel="stylesheet" href="style.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="icon" type="image/x-icon" href="/images/favicon.ico">
     <link href="https://fonts.googleapis.com/css2?family=Nunito&display=swap" rel="stylesheet">
+
+    <link rel="preload" as="image" href="images/UI_1.jpg">
+    <link rel="preload" as="image" href="images/UI_2.png">
+    <link rel="preload" as="image" href="images/UI_3.jpg">
+    <link rel="preload" as="image" href="images/UI_4.jpg">
+    <link rel="preload" as="image" href="images/UI_5.jpg">
 </head>
 
 <body>
+    <div class="centralDot"></div>
     <div id="menuDiv" class="gui_background" style="display: none">
         <div class="menu">
             <h2 class="title">AMOUAGE</h2>
-            <div class="imageContainer">
-                <div style="background-image: url('textures/UI_1.jpg'); background-position: 45%;" class="menuImages">
+            <p id="backButton" style="display: none;">&#60; PREVIOUS</p>
+            <div id="0" class="categoryContainer">
+                <div style="background-image: url('images/UI_1.jpg'); background-position: 45%;" class="menuImages">
                     <p class="menuText">The Library Collection</p>
                 </div>
-                <div style="background-image: url('textures/UI_2.png'); background-position: 50%;" class="menuImages">
+                <div style="background-image: url('images/UI_2.png'); background-position: 50%;" class="menuImages">
                     <p class="menuText">The Odyssey Collection</p>
                 </div>
-                <div style="background-image: url('textures/UI_3.jpg'); background-position: 15%;" class="menuImages">
+                <div style="background-image: url('images/UI_3.jpg'); background-position: 15%;" class="menuImages">
                     <p class="menuText">The Gift of Kings</p>
                 </div>
-                <div style="background-image: url('textures/UI_4.jpg'); background-position: 35%;" class="menuImages">
+                <div style="background-image: url('images/UI_4.jpg'); background-position: 35%;" class="menuImages">
                     <p class="menuText">The Iconic Collection</p>
                 </div>
-                <div style="background-image: url('textures/UI_5.jpg'); background-position: 45%;" class="menuImages">
+                <div style="background-image: url('images/UI_5.jpg'); background-position: 45%;" class="menuImages">
                     <p class="menuText">Amouage Instore Collection</p>
                 </div>
             </div>
+            <div id="1" class="productContainer"  style="display: none;"></div>
+            <div id="2" class="productContainer" style="display: none;"></div>
+            <div id="3" class="productContainer" style="display: none;"></div>
+            <div id="4" class="productContainer" style="display: none;"></div>
+            <div id="5" class="productContainer" style="display: none;"></div>
         </div>
     </div>
     <div id="blocker" class="gui_background" style="display: block">
@@ -39,6 +51,6 @@
     <!-- <script type="module" src="script.js"></script> -->
 
 </body>
-<script type="module" src="test.js"></script>
+<script type="module" src="script.js"></script>
 
 </html>

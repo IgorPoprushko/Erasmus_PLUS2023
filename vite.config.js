@@ -7,7 +7,11 @@ export default {
     server:
     {
         host: true,
-        open: !isCodeSandbox // Open if it's not a CodeSandbox
+        open: !isCodeSandbox, // Open if it's not a CodeSandbox
+        mimeTypes: {
+            'application/javascript': ['js'],
+            'text/plain': ['obj']
+          }
     },
     build:
     {
